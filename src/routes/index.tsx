@@ -3,7 +3,8 @@ import { BrandMark } from "@/components/brand-mark";
 import { CallSignature } from "@/components/call-signature";
 import { PackageCard } from "@/components/package-card";
 import { Button } from "@/components/ui/button";
-import { packages, partners, values } from "@/data/packages";
+import { packages, partners, values, type Partner } from "@/data/packages";
+import { cn } from "@/lib/cn";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -47,12 +48,6 @@ function Home() {
             <Button asChild variant="outline" size="lg">
               <Link to="/docs">Docs</Link>
             </Button>
-            <Button asChild size="lg">
-              <Link to="/login">
-                <BrandMark size={14} className="[&>span]:bg-primary-fg" />
-                Get Started
-              </Link>
-            </Button>
           </div>
         </div>
       </section>
@@ -65,10 +60,7 @@ function Home() {
 
       <section className="mx-auto mt-16 grid max-w-5xl gap-4 px-5 sm:grid-cols-2 sm:px-8">
         {values.map((item) => (
-          <article
-            key={item.slug}
-            className="rounded-lg border border-border bg-card p-5"
-          >
+          <article key={item.slug} className="rounded-lg border border-border bg-card p-5">
             <div className="mb-3 flex items-center gap-2">
               <span className="size-2.5 rounded-[2px] bg-primary" />
               <span className="font-mono text-sm font-medium">{item.name}</span>
@@ -78,22 +70,46 @@ function Home() {
         ))}
       </section>
 
-      <section className="mx-auto mt-24 max-w-5xl px-5 text-center sm:px-8">
-        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+      <section className="mx-auto mt-24 max-w-5xl px-5 sm:px-8">
+        <h2 className="text-center text-2xl font-semibold tracking-tight sm:text-3xl">
           Trusted by Sui's best
         </h2>
-        <ul className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {partners.map((name) => (
-            <li
-              key={name}
-              className="rounded-lg border border-border bg-card px-4 py-5 text-sm font-medium tracking-tight text-muted"
-            >
-              {name}
+        <ul className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {partners.map((partner) => (
+            <li key={partner.name}>
+              <PartnerTile partner={partner} />
             </li>
           ))}
         </ul>
       </section>
     </main>
+  );
+}
+
+function PartnerTile({ partner }: { partner: Partner }) {
+  return (
+    <a href={partner.href} target="_blank" rel="noreferrer" className="group block">
+      <div
+        className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border border-border transition-colors duration-200 group-hover:border-primary/30"
+        style={partner.background ? { backgroundColor: partner.background } : undefined}
+      >
+        <img
+          src={partner.logo}
+          alt=""
+          className={cn(
+            partner.display === "cover"
+              ? "size-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+              : cn(
+                  "w-[78%] max-h-[42%] object-contain transition-transform duration-300 group-hover:scale-[1.03]",
+                  partner.invert && "brightness-0 invert",
+                ),
+          )}
+        />
+      </div>
+      <span className="mt-3 block text-center font-mono text-sm font-medium tracking-tight text-muted transition-colors group-hover:text-fg">
+        {partner.name}
+      </span>
+    </a>
   );
 }
 

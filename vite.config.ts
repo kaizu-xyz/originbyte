@@ -3,7 +3,6 @@ import { defineConfig } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { nitro } from "nitro/vite";
 // @ts-expect-error JS plugin alongside the TS vite config
 import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 
@@ -123,12 +122,14 @@ function authPopupPlugin(): Plugin {
   };
 }
 
+const pagesBase = (process.env.GITHUB_PAGES_BASE ?? "").replace(/\/$/, "");
+const viteBase = pagesBase ? `${pagesBase}/` : "/";
+
 // `0.0.0.0:8080` is the live-preview contract — don't change host/port.
-// Keep `nitro` gated to `build` (the Vercel deploy target): enabled in dev it
-// opens a second dev-server port, which breaks the single-port preview.
-// The dev server starts once `src/router.tsx` and `src/routes/` exist — see
-// AGENTS.md § "First scaffold".
-export default defineConfig(({ command }) => ({
+// Nitro is build-only: enabling it in dev opens a second port and breaks
+// the single-port preview.
+export default defineConfig(() => ({
+  base: viteBase,
   server: {
     host: "0.0.0.0",
     port: 8080,
@@ -142,18 +143,25 @@ export default defineConfig(({ command }) => ({
     // PWA head + ?install=1 tutorial page; runs before Start/Nitro.
     grokPwaPlugin(),
     tailwindcss(),
-    tanstackStart(),
-    ...(command === "build"
-      ? [
-          nitro({
-            preset: "vercel",
-            // Auto-registers server/middleware/* (the PWA install page +
-            // manifest + head-tag middleware). Nitro v3 defaults serverDir to
-            // false, so removing this silently unwires /?install=1 on deploys.
-            serverDir: "./server",
-          }),
-        ]
-      : []),
+    tanstackStart({
+      spa: { enabled: true },
+      prerender: {
+        enabled: true,
+        crawlLinks: true,
+        failOnError: false,
+      },
+      pages: [
+        { path: "/" },
+        { path: "/docs" },
+        { path: "/packages/token-launch" },
+        { path: "/packages/secondary-market" },
+        { path: "/packages/unreal-sdk" },
+        { path: "/packages/unity-sdk" },
+        { path: "/packages/originmate" },
+        { path: "/packages/suivm" },
+      ],
+      ...(pagesBase ? { router: { basepath: pagesBase } } : {}),
+    }),
     viteReact(),
   ],
 }));

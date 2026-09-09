@@ -13,7 +13,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
-import { Route as DocsSlugRouteImport } from './routes/docs.$slug'
+import { Route as DocsIndexRouteImport } from './routes/docs.index'
+import { Route as DocsSplatRouteImport } from './routes/docs.$'
 import { Route as PackagesSlugRouteImport } from './routes/packages.$slug'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -37,9 +38,14 @@ const WorkspaceRoute = WorkspaceRouteImport.update({
   path: '/workspace',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DocsSlugRoute = DocsSlugRouteImport.update({
-  id: '/$slug',
-  path: '/$slug',
+const DocsIndexRoute = DocsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DocsRoute,
+} as any)
+const DocsSplatRoute = DocsSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => DocsRoute,
 } as any)
 const PackagesSlugRoute = PackagesSlugRouteImport.update({
@@ -58,17 +64,18 @@ export interface FileRoutesByFullPath {
   '/docs': typeof DocsRouteWithChildren
   '/login': typeof LoginRoute
   '/workspace': typeof WorkspaceRoute
-  '/docs/$slug': typeof DocsSlugRoute
+  '/docs/$': typeof DocsSplatRoute
   '/packages/$slug': typeof PackagesSlugRoute
+  '/docs/': typeof DocsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/docs': typeof DocsRouteWithChildren
   '/login': typeof LoginRoute
   '/workspace': typeof WorkspaceRoute
-  '/docs/$slug': typeof DocsSlugRoute
+  '/docs/$': typeof DocsSplatRoute
   '/packages/$slug': typeof PackagesSlugRoute
+  '/docs': typeof DocsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -77,8 +84,9 @@ export interface FileRoutesById {
   '/docs': typeof DocsRouteWithChildren
   '/login': typeof LoginRoute
   '/workspace': typeof WorkspaceRoute
-  '/docs/$slug': typeof DocsSlugRoute
+  '/docs/$': typeof DocsSplatRoute
   '/packages/$slug': typeof PackagesSlugRoute
+  '/docs/': typeof DocsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -88,17 +96,18 @@ export interface FileRouteTypes {
     | '/docs'
     | '/login'
     | '/workspace'
-    | '/docs/$slug'
+    | '/docs/$'
     | '/packages/$slug'
+    | '/docs/'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/docs'
     | '/login'
     | '/workspace'
-    | '/docs/$slug'
+    | '/docs/$'
     | '/packages/$slug'
+    | '/docs'
     | '/api/auth/$'
   id:
     | '__root__'
@@ -106,8 +115,9 @@ export interface FileRouteTypes {
     | '/docs'
     | '/login'
     | '/workspace'
-    | '/docs/$slug'
+    | '/docs/$'
     | '/packages/$slug'
+    | '/docs/'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -150,11 +160,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspaceRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/docs/$slug': {
-      id: '/docs/$slug'
-      path: '/$slug'
-      fullPath: '/docs/$slug'
-      preLoaderRoute: typeof DocsSlugRouteImport
+    '/docs/': {
+      id: '/docs/'
+      path: '/'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof DocsRoute
+    }
+    '/docs/$': {
+      id: '/docs/$'
+      path: '/$'
+      fullPath: '/docs/$'
+      preLoaderRoute: typeof DocsSplatRouteImport
       parentRoute: typeof DocsRoute
     }
     '/packages/$slug': {
@@ -175,11 +192,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface DocsRouteChildren {
-  DocsSlugRoute: typeof DocsSlugRoute
+  DocsSplatRoute: typeof DocsSplatRoute
+  DocsIndexRoute: typeof DocsIndexRoute
 }
 
 const DocsRouteChildren: DocsRouteChildren = {
-  DocsSlugRoute: DocsSlugRoute,
+  DocsSplatRoute: DocsSplatRoute,
+  DocsIndexRoute: DocsIndexRoute,
 }
 
 const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)

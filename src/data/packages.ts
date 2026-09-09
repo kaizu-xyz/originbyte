@@ -101,11 +101,43 @@ export const values = [
   },
 ];
 
-export const partners = [
-  "Mysten Labs",
-  "Shinami",
-  "Clutchy",
-  "Ethos",
+export type Partner = {
+  name: string;
+  href: string;
+  logo: string;
+  display: "cover" | "wordmark";
+  background?: string;
+  invert?: boolean;
+};
+
+export const partners: Partner[] = [
+  {
+    name: "Mysten Labs",
+    href: "https://mystenlabs.com",
+    logo: "/logos/mysten.png",
+    display: "cover",
+  },
+  {
+    name: "Hyperspace",
+    href: "https://hyperspace.xyz",
+    logo: "/logos/hyperspace.jpeg",
+    display: "cover",
+  },
+  {
+    name: "Shinami",
+    href: "https://www.shinami.com",
+    logo: "/logos/shinami.svg",
+    display: "wordmark",
+    background: "#3D3652",
+    invert: true,
+  },
+  {
+    name: "DeepBook",
+    href: "https://deepbook.tech",
+    logo: "/logos/deepbook.png",
+    display: "wordmark",
+    background: "#0a0a0a",
+  },
 ];
 
 export function getPackage(slug: string) {

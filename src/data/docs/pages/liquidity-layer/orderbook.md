@@ -1,0 +1,179 @@
+# Orderbook
+
+`Orderbook` implementations are where bids are fungible tokens and asks are NFTs. A bid is a request to buy one NFT from a specific collection. An ask is one NFT with a minimum price condition.
+
+`Ask` is an object which is associated with a single NFT. When `Ask` is created, we transfer the ownership of the NFT to this new object. To be more precise, we transfer the `safe::TransferCap`.
+
+You can:
+
+- create a new `Orderbook` between a given collection and a `BID` token (witness pattern protected)
+- set publicly accessible actions to be witness protected
+- open a new BID
+- cancel an existing BID they own
+- offer an NFT if a collection matches OB collection
+- cancel an existing NFT offer
+- instantly buy a specific NFT
+
+## Intermediary state
+
+The `Orderbook` is designed such that NFTs always remain in `Safe` objects. That is, an NFT is never transferred directly between two parties. Rather, it is transferred between the `Safe` objects owned by the seller and the buyer. This grants certain royalty enforcement properties.
+
+Hence, clients must know *up front* which exact `Safe` instance to provide into the entry methods which will then transfer an NFT. However, OriginByte concept supports frequent trading with `create_ask` and `create_bid` endpoints. In such trading, the `Safe` instance cannot reliably be known in advance. Therefore, we cannot accept buyer's or seller's `Safe` respectively in these endpoints. The problem can be summarized as follows:
+
+1. 1.The client has to fetch the OB state to know what's the lowest ask because that determines what `Safe` to include in a transaction to create a new bid.
+2. 2.The client then has to send the transaction. If the lowest ask changes, the transaction fails. The client has to retry.
+3. 3.The client is interested in any collection's NFT, yet it observes failures due to an abstraction leak.
+
+This problem is solved by introducing an intermediary state. When a trade is executed we create new `TradeIntermediate` shared object. This object contains `TransferCap` for the NFT and paid balance. A permission-less endpoint `finish_trade` must be called with the buyer's and the seller's `Safe` objects as arguments. The `TradeIntermediate` is a shared object so that both parties can actually drive the trade to completion.
+
+## Commission
+
+When a bid or an ask is created via a wallet or a marketplace, the client can use `create_bid_with_commission` or `create_ask_with_commission` endpoints. These endpoints have two additional arguments: `beneficiary` address and `commission_ft` amount.
+
+Creating a bid with a commission amount will take this amount from the buyer's wallet and lock them along with the funds they are bidding with. Once the bid is matched, the locked commission funds are instantly transferred to the beneficiary address.
+
+Creating an ask with a commission amount will take the amount from the seller's reward for the NFT. For example, if an NFT is sold for 10 SUI and the commission was 2 SUI, then the NFT seller receives 8 SUI and the beneficiary gets 2 SUI. Once the ask is matched, the commission funds are *eventually* transferred to the beneficiary address. See the documentation for the intermediary state above. The commission is paid to the beneficiary only after the intermediary state has been resolved.
+
+If a Marketplace or a wallet wants to receive a commission on a trade they facilitate when buying a specific NFT with `buy_nft` endpoint, the client can use a batched transaction to get their commission. In the batched transaction they include both `buy_nft` and then a `Coin` transfer to their address. Hence, we *don't* export a `buy_nft_with_commission` endpoint.
+
+If there are two different marketplaces facilitating a single trade, both can claim a commission. Marketplace A would earn a commission from the buyer (on the bid) and Marketplace B would earn a commission from the seller (on the ask).
+
+## Witness Protected Actions
+
+The contract which creates the `Orderbook` can restrict specific actions to be called only with a witness pattern and not via the entry point function. This means others can build contracts on top of the `Orderbook` with their own custom logic based on their requirements or they can just use the entry point functions that cover other use cases.
+
+If a method is protected, clients will need to call a standard endpoint in the witness-owning smart contract instead of the relevant endpoint in the `Orderbook`. Another way to think about this from a marketplace or wallet P.O.V.: if I see that an action is protected, I can decide to either call the downstream implementation in the collection smart contract, or simply disable that specific action.
+
+An example of this would be an NFT that has an expiry date like a name service that requires an additional check before an ask can be placed on the `Orderbook`. Marketplaces can choose to support this additional logic or simply use the standard `Orderbook` and enable bids but asks would be disabled until they decide to support the additional checks.
+
+The setting is stored on the `Orderbook` object:
+
+```move
+struct WitnessProtectedActions has store {
+    buy_nft: bool,
+    cancel_ask: bool,
+    cancel_bid: bool,
+    create_ask: bool,
+    create_bid: bool,
+}
+```
+
+This means that the additional complexity is *(i)* opt-in by the collection and *(ii)* reserved only to the particular action which warrants that complexity.
+
+To reiterate, a Marketplace can list NFTs from collections that have all actions unprotected, ie. no special logic. Or they can just disable that particular action that is disabled in the UI.
+
+## Endpoints
+
+- `C` is a generic for the NFT collection
+- `FT` is a generic for the fungible token
+
+To create a new instance of an `Orderbook` that trades given collection for a given fungible token call the following endpoint:
+
+```move
+create<C, FT>()
+```
+
+To create a new bid, the client provides the `Safe` into which they wish to receive an NFT. They provide the price in the smallest unit of the fungible token. This amount will be taken from the provided `Coin` wallet.
+
+This endpoint will either store a new bid in the `Orderbook`, or it will match the bid with an existing ask thereby executing the trade.
+
+In such a case, a new shared object `TradeIntermediate` is created.
+
+```move
+create_bid<C, FT>(
+    book: &mut Orderbook<C, FT>,
+    buyer_safe: &mut Safe,
+    price: u64,
+    wallet: &mut Coin<FT>,
+)
+```
+
+In addition to the above, the client can ask for a commission when they create the bid on behalf of the signer.
+
+```move
+create_bid_with_commission<C, FT>(
+    book,
+    buyer_safe,
+    price: u64,
+    beneficiary: address,
+    commission_ft: u64,
+    wallet,
+)
+```
+
+To cancel an existing bid, the client gives the price they sent as input in the previous endpoint. If there are multiple bids the transaction sender has created with the same price, then only the first order is canceled.
+
+```move
+cancel_bid<C, FT>(
+    book,
+    bid_price_level: u64,
+    wallet,
+)
+```
+
+To create a new ask, the client provides the `Safe` in which the NFT lives. They provide the price in the smallest unit of the fungible token they wish to sell their NFT for. They must also provide the *exclusive* `TransferCap` for the NFT. See the `Safe` documentation for more details on how to obtain this object.
+
+```move
+create_ask<C, FT>(
+    book,
+    requested_tokens: u64,
+    transfer_cap: TransferCap,
+    safe,
+)
+```
+
+Additionally, the client can ask for a commission. When the ask is matched, the commission is paid to the beneficiary address. The commission is taken from the seller's reward for the NFT. Hence, `requested_tokens` must be greater than `commission_ft`.
+
+```move
+create_ask_with_commission<C, FT>(
+    book,
+    requested_tokens: u64,
+    transfer_cap,
+    beneficiary: address,
+    commission: u64,
+    safe,
+)
+```
+
+To cancel an offer on a specific NFT, the client provides the price they listed it for. In theory, it should be enough to provide the NFT ID. However, in the current version, it's more efficient to search the orderbook state by price. This argument can be argued to be a leaky abstraction and might be removed in future versions. The `TransferCap` object is transferred back to the tx sender.
+
+```move
+cancel_ask<C, FT>(
+    book,
+    nft_price_level: u64,
+    nft_id: ID,
+)
+```
+
+To buy a specific NFT listed in the orderbook, the client provides the price for which the NFT is listed. In this case, it's important to provide both the price and NFT ID to avoid actions such as offering an NFT for a really low price and then quickly changing the price to a higher one. The provided `Coin` wallet is used to pay for the NFT. The NFT is transferred from the seller's `Safe` to the buyer's `Safe`. The whitelist is used to check if the orderbook is authorized to trade the collection at all. See the whitelist documentation for more information. This endpoint does *not* create a new `TradeIntermediate`, rather performs the transfer straight away.
+
+```move
+buy_nft<C, FT>(
+    book,
+    nft_id,
+    price: u64,
+    wallet,
+    seller_safe,
+    buyer_safe,
+    whitelist: &Whitelist,
+    ctx: &mut TxContext,
+)
+```
+
+Settles a trade by transferring the NFT from the seller's `Safe` to the buyer's `Safe`. See the whitelist documentation for more information. This endpoint does *not* create a new `TradeIntermediate`, rather performs the transfer straight away.
+
+```move
+finish_trade<C, FT>(
+    trade: &mut TradeIntermediate<C, FT>,
+    seller_safe,
+    buyer_safe,
+    whitelist,
+    ust
+)
+```
+
+### Our Community
+
+- [Twitter](https://twitter.com/Origin_Byte)
+- [Discord](https://discord.gg/5yxFc59azm)
+- [GitHub](https://github.com/Origin-Byte)

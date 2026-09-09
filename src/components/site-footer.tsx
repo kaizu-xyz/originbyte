@@ -10,9 +10,6 @@ export function SiteFooter() {
           <Link to="/docs" className="hover:text-fg">
             Docs
           </Link>
-          <Link to="/login" className="hover:text-fg">
-            Get Started
-          </Link>
           <a
             href="https://github.com/Origin-Byte"
             target="_blank"
@@ -31,9 +28,7 @@ export function SiteFooter() {
           </a>
         </nav>
       </div>
-      <p className="mt-8 text-xs text-muted">
-        Public goods for Sui — standards and tooling for digital-asset markets.
-      </p>
+      <p className="mt-8 text-xs text-muted">Composable trading layer on Sui</p>
     </footer>
   );
 }
